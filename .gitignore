@@ -1,0 +1,11 @@
+.DS_Store
+
+*.log
+*.lock
+
+.vscode/
+.idea/
+
+tmp/
+build/
+

@@ -1,0 +1,85 @@
+#!/bin/bash
+set -u
+
+SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+if [ -r "$SELF_DIR/../lib/common.sh" ] && [ -r "$SELF_DIR/../commands/status.sh" ]; then
+  # 源码目录运行：bin/eg25 的上一级就是工具根目录。
+  EG25_ROOT="$(CDPATH= cd -- "$SELF_DIR/.." && pwd)"
+elif [ -r "/usr/local/lib/eg25-toolkit/lib/common.sh" ]; then
+  # 标准安装位置。
+  EG25_ROOT="/usr/local/lib/eg25-toolkit"
+else
+  printf 'ERROR: EG25 Toolkit 安装不完整，找不到 common.sh。\n' >&2
+  printf '请重新运行安装包中的 ./install.sh。\n' >&2
+  exit 78
+fi
+export EG25_ROOT
+
+# shellcheck disable=SC1091
+. "$EG25_ROOT/lib/common.sh"
+. "$EG25_ROOT/lib/vm.sh"
+. "$EG25_ROOT/lib/usb.sh"
+. "$EG25_ROOT/lib/network.sh"
+. "$EG25_ROOT/lib/at.sh"
+. "$EG25_ROOT/lib/state.sh"
+. "$EG25_ROOT/lib/doctor.sh"
+. "$EG25_ROOT/lib/telemetry.sh"
+. "$EG25_ROOT/commands/status.sh"
+. "$EG25_ROOT/commands/mac.sh"
+. "$EG25_ROOT/commands/vohive.sh"
+. "$EG25_ROOT/commands/at.sh"
+. "$EG25_ROOT/commands/doctor.sh"
+. "$EG25_ROOT/commands/info.sh"
+
+usage() {
+  cat <<USAGE
+EG25 Toolkit v${EG25_VERSION}
+
+用法：
+  eg25 status              查看当前模式和网络状态
+  eg25 mac                 切换到 macOS ECM 上网模式
+  eg25 vohive              切换到 VM QMI / VoHive 模式并验证数据连接
+  eg25 repair              wwan0 无地址时执行一次受控恢复
+  eg25 health              查看 QMI / VoHive 关键健康状态
+  eg25 reset               强制 CFUN 重启并恢复 QMI 数据连接
+  eg25 at 'AT+CSQ'         在 VM 中自动探测 AT 端口并发送指令
+  eg25 doctor              检查核心依赖和当前状态
+  eg25 info                显示安装、配置和运行环境信息
+  eg25 history [条数]      查看最近运行历史和恢复统计
+  eg25 version             显示版本
+  eg25 help                显示帮助
+USAGE
+}
+
+command_name="${1:-help}"
+shift 2>/dev/null || true
+EG25_COMMAND="$command_name"
+export EG25_COMMAND
+init_log
+telemetry_init
+log_line "START version=$EG25_VERSION"
+
+telemetry_exit_trap() {
+  local rc=$?
+  telemetry_finish "$rc"
+}
+trap telemetry_exit_trap EXIT
+
+case "$command_name" in
+  status)  cmd_status "$@" ;;
+  mac)     cmd_mac "$@" ;;
+  vohive)  cmd_vohive "$@" ;;
+  repair)  cmd_repair "$@" ;;
+  health)  cmd_health "$@" ;;
+  reset)   cmd_reset "$@" ;;
+  at)      cmd_at "$@" ;;
+  doctor)  cmd_doctor "$@" ;;
+  info)    cmd_info "$@" ;;
+  history) cmd_history "$@" ;;
+  version|--version|-V) printf 'EG25 Toolkit %s\n' "$EG25_VERSION" ;;
+  help|--help|-h|'') usage ;;
+  *) usage >&2; die "未知命令：$command_name" 64 ;;
+esac
+rc=$?
+log_line "END rc=$rc"
+exit "$rc"
