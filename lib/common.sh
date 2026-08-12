@@ -33,6 +33,8 @@ fi
 : "${VOHIVE_DATA_WAIT_SECONDS:=30}"
 : "${VOHIVE_RECOVERY_WAIT_SECONDS:=40}"
 : "${CFUN_USB_LEAVE_WAIT_SECONDS:=30}"
+: "${EG25_DATA_DIR:=$HOME/.eg25}"
+: "${EG25_LOCK_DIR:=$EG25_DATA_DIR/operation.lock}"
 : "${LOG_DIR:=$HOME/Library/Logs/eg25-toolkit}"
 
 VM_TARGET="${VM_USER}@${VM_HOST}"
@@ -40,6 +42,8 @@ SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout="$SSH_C
 
 EG25_COMMAND="${EG25_COMMAND:-unknown}"
 EG25_LOG_FILE=""
+EG25_LOCK_HELD=0
+EG25_LOCK_TOKEN=""
 
 init_log() {
   mkdir -p "$LOG_DIR" 2>/dev/null || true
@@ -60,6 +64,136 @@ error(){ printf '    ✗ %s\n' "$*" >&2; log_line "FAIL $*"; }
 die()  { printf '\n❌ %s\n' "$*" >&2; log_line "FATAL $*"; exit "${2:-1}"; }
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
+
+command_requires_operation_lock() {
+  case "${1:-}" in
+    mac|vohive|repair|reset|at) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+operation_lock_process_start() {
+  [ -n "${1:-}" ] || return 1
+  ps -p "$1" -o lstart= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+operation_lock_is_active() {
+  local pid recorded_start current_start
+  pid="$(cat "$EG25_LOCK_DIR/pid" 2>/dev/null || true)"
+  recorded_start="$(cat "$EG25_LOCK_DIR/process_started" 2>/dev/null || true)"
+  case "$pid" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  kill -0 "$pid" 2>/dev/null || return 1
+
+  # 防止异常退出后 PID 被其他进程复用。旧锁没有启动签名时，保守地视为有效。
+  [ -n "$recorded_start" ] || return 0
+  current_start="$(operation_lock_process_start "$pid" || true)"
+  [ -n "$current_start" ] && [ "$current_start" = "$recorded_start" ]
+}
+
+show_operation_lock_owner() {
+  local pid command_name started
+  pid="$(cat "$EG25_LOCK_DIR/pid" 2>/dev/null || printf '未知')"
+  command_name="$(cat "$EG25_LOCK_DIR/command" 2>/dev/null || printf '未知')"
+  started="$(cat "$EG25_LOCK_DIR/started_at" 2>/dev/null || printf '未知')"
+  error '已有 EG25 独占操作正在运行'
+  printf '    PID：%s\n' "$pid" >&2
+  printf '    命令：%s\n' "$command_name" >&2
+  printf '    开始时间：%s\n' "$started" >&2
+}
+
+wait_for_operation_lock_metadata() {
+  local attempt=1
+  while [ "$attempt" -le 5 ]; do
+    [ -r "$EG25_LOCK_DIR/pid" ] && return 0
+    sleep 0.1
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
+reclaim_stale_operation_lock() {
+  local stale_dir
+  stale_dir="${EG25_LOCK_DIR}.stale.$$"
+
+  # 原子改名确保多个竞争进程不会误删刚刚建立的新锁。
+  mv "$EG25_LOCK_DIR" "$stale_dir" 2>/dev/null || return 1
+  rm -f "$stale_dir/pid" "$stale_dir/command" "$stale_dir/started_at" \
+    "$stale_dir/process_started" "$stale_dir/token" 2>/dev/null || true
+  if ! rmdir "$stale_dir" 2>/dev/null; then
+    error "失效锁目录包含未知文件，未自动删除：$stale_dir"
+    return 1
+  fi
+  warn '检测到失效的 EG25 操作锁，已安全清理'
+}
+
+acquire_operation_lock() {
+  local command_name="${1:-unknown}" attempt=1 process_started
+  [ -n "$EG25_LOCK_DIR" ] && [ "$EG25_LOCK_DIR" != '/' ] || {
+    error 'EG25_LOCK_DIR 配置无效'
+    return 78
+  }
+  mkdir -p "$(dirname "$EG25_LOCK_DIR")" 2>/dev/null || {
+    error "无法创建操作锁父目录：$(dirname "$EG25_LOCK_DIR")"
+    return 73
+  }
+
+  while [ "$attempt" -le 3 ]; do
+    if mkdir "$EG25_LOCK_DIR" 2>/dev/null; then
+      EG25_LOCK_TOKEN="$$-$(date +%s)-${RANDOM:-0}"
+      process_started="$(operation_lock_process_start "$$" || true)"
+      printf '%s\n' "$$" >"$EG25_LOCK_DIR/pid"
+      printf '%s\n' "$command_name" >"$EG25_LOCK_DIR/command"
+      printf '%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" >"$EG25_LOCK_DIR/started_at"
+      printf '%s\n' "$process_started" >"$EG25_LOCK_DIR/process_started"
+      printf '%s\n' "$EG25_LOCK_TOKEN" >"$EG25_LOCK_DIR/token"
+      EG25_LOCK_HELD=1
+      export EG25_LOCK_HELD EG25_LOCK_TOKEN
+      log_line "LOCK acquired path=$EG25_LOCK_DIR"
+      return 0
+    fi
+
+    # mkdir 与元数据写入之间存在极短窗口；先等待持锁进程写入 PID，避免误判为失效锁。
+    wait_for_operation_lock_metadata || true
+    if operation_lock_is_active; then
+      show_operation_lock_owner
+      return 75
+    fi
+    reclaim_stale_operation_lock || {
+      error "无法回收失效操作锁：$EG25_LOCK_DIR"
+      return 75
+    }
+    attempt=$((attempt + 1))
+  done
+
+  error "无法取得 EG25 操作锁：$EG25_LOCK_DIR"
+  return 75
+}
+
+release_operation_lock() {
+  local recorded_token
+  [ "$EG25_LOCK_HELD" -eq 1 ] || return 0
+  recorded_token="$(cat "$EG25_LOCK_DIR/token" 2>/dev/null || true)"
+  if [ -z "$EG25_LOCK_TOKEN" ] || [ "$recorded_token" != "$EG25_LOCK_TOKEN" ]; then
+    warn '操作锁所有权已变化，拒绝删除其他进程的锁'
+    EG25_LOCK_HELD=0
+    return 1
+  fi
+
+  log_line "LOCK released path=$EG25_LOCK_DIR"
+  rm -f "$EG25_LOCK_DIR/pid" "$EG25_LOCK_DIR/command" \
+    "$EG25_LOCK_DIR/started_at" "$EG25_LOCK_DIR/process_started" \
+    "$EG25_LOCK_DIR/token" 2>/dev/null || true
+  if ! rmdir "$EG25_LOCK_DIR" 2>/dev/null; then
+    warn "操作锁目录未能完全清理：$EG25_LOCK_DIR"
+    EG25_LOCK_HELD=0
+    EG25_LOCK_TOKEN=""
+    return 1
+  fi
+  EG25_LOCK_HELD=0
+  EG25_LOCK_TOKEN=""
+}
 
 run_with_timeout() {
   local timeout_seconds="$1"
