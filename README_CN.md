@@ -6,7 +6,7 @@ EG25-Toolkit 是一套面向 macOS、UTM Ubuntu 虚拟机和 LTE 模组的命令
 
 项目最初为 Quectel EG25-G 与 Baiwang 兼容设备开发，主要用于减少蜂窝模组在 macOS 主机和 Linux 虚拟机之间切换时的重复配置与排障工作。
 
-> 当前稳定版本：**3.3.1**
+> 当前稳定版本：**3.3.2**
 
 ## 主要功能
 
@@ -89,7 +89,7 @@ ssh <VM_USER>@<VM_HOST> sudo -n true
 ```bash
 git clone https://github.com/dinga1981/EG25-Toolkit.git
 cd EG25-Toolkit
-git checkout v3.3.1
+git checkout v3.3.2
 ```
 
 执行安装：
@@ -335,7 +335,7 @@ eg25 history 30
 ```bash
 cd EG25-Toolkit
 git fetch --tags
-git checkout v3.3.1
+git checkout v3.3.2
 ./install.sh
 ```
 

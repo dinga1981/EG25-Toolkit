@@ -58,7 +58,7 @@ git clone git@github.com:dinga1981/EG25-Toolkit.git
 进入：
 cd EG25-Toolkit
 切换版本：
-git checkout v3.3.1
+git checkout v3.3.2
 安装：
 chmod +x install.sh uninstall.sh bin/eg25
 
@@ -106,4 +106,4 @@ checkout 稳定tag
 DJOneHub:
 v0.1.7-2c7c
 EG25 Toolkit:
-v3.3.1
+v3.3.2

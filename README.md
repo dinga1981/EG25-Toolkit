@@ -50,7 +50,9 @@ Current tested environment:
 Install:
 
 ```bash
-cd eg25-toolkit-v3.3.1
+git clone https://github.com/dinga1981/EG25-Toolkit.git
+cd EG25-Toolkit
+git checkout v3.3.2
 chmod +x install.sh uninstall.sh bin/eg25
 ./install.sh
 ```
@@ -95,4 +97,7 @@ Future development will focus on broader hardware compatibility, improved diagno
 
 EG25-Toolkit is released under the [MIT License](LICENSE).
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
