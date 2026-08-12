@@ -59,11 +59,19 @@ init_log
 telemetry_init
 log_line "START version=$EG25_VERSION"
 
-telemetry_exit_trap() {
+eg25_exit_trap() {
   local rc=$?
   telemetry_finish "$rc"
+  release_operation_lock || true
+  return "$rc"
 }
-trap telemetry_exit_trap EXIT
+trap eg25_exit_trap EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if command_requires_operation_lock "$command_name"; then
+  acquire_operation_lock "$command_name" || exit $?
+fi
 
 case "$command_name" in
   status)  cmd_status "$@" ;;

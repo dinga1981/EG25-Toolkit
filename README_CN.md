@@ -18,6 +18,7 @@ EG25-Toolkit 是一套面向 macOS、UTM Ubuntu 虚拟机和 LTE 模组的命令
 - 在 QMI 数据连接失败时执行一次受控 CFUN 恢复
 - 保存操作历史、恢复结果和运行日志
 - 提供依赖检查、状态诊断和健康检查命令
+- 对模式切换、修复、重置和 AT 操作使用独占锁，并自动回收失效锁
 
 ## 工作方式
 
@@ -390,3 +391,6 @@ EG25-Toolkit/
 
 项目地址：[dinga1981/EG25-Toolkit](https://github.com/dinga1981/EG25-Toolkit)
 
+## 开源许可证
+
+EG25-Toolkit 使用 [MIT License](LICENSE) 发布。

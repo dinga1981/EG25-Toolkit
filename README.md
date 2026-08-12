@@ -33,6 +33,7 @@ EG25-Toolkit reduces this complexity by providing a unified command-line interfa
 - Automatic recovery workflows
 - Diagnostic commands and troubleshooting information
 - Operation history tracking
+- Exclusive operation locking with stale-lock recovery
 
 ## Supported Environment
 
@@ -90,5 +91,8 @@ Future development will focus on broader hardware compatibility, improved diagno
 中文详细文档:
 ➡️ [README_CN.md](README_CN.md)
 
+## License
+
+EG25-Toolkit is released under the [MIT License](LICENSE).
 
 
