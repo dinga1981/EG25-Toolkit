@@ -1,7 +1,7 @@
 #!/bin/bash
 # shellcheck shell=bash
 
-EG25_VERSION="3.3.1"
+EG25_VERSION="3.3.2"
 EG25_ROOT="${EG25_ROOT:-$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
 EG25_CONFIG="${EG25_CONFIG:-$EG25_ROOT/config/eg25.conf}"
 

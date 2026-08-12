@@ -11,7 +11,7 @@ if [ -r "$OLD_CONFIG" ]; then
   cp "$OLD_CONFIG" "$TMP_CONFIG"
 fi
 
-echo '安装 EG25 Toolkit v3.3.1...'
+echo '安装 EG25 Toolkit v3.3.2...'
 sudo rm -rf "$DEST"
 sudo mkdir -p "$DEST"
 sudo cp -R "$ROOT/bin" "$ROOT/lib" "$ROOT/commands" "$ROOT/config" "$DEST/"
@@ -38,7 +38,7 @@ done
 echo ''
 mkdir -p "$HOME/.eg25/log"
 echo '✅ 安装完成'
-echo '版本：      EG25 Toolkit 3.3.1'
+echo '版本：      EG25 Toolkit 3.3.2'
 echo '命令位置：  /usr/local/bin/eg25'
 echo '程序目录：  /usr/local/lib/eg25-toolkit'
 echo '数据目录：  ~/.eg25'
